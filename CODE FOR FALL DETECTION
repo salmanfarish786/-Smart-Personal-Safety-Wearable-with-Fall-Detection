@@ -1,0 +1,91 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <BluetoothSerial.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+Adafruit_MPU6050 mpu;
+BluetoothSerial SerialBT;
+
+float threshold = 15.0;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  // OLED init
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED not found");
+    while (1);
+  }
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("Initializing...");
+  display.display();
+
+  // MPU init
+  if (!mpu.begin()) {
+    Serial.println("MPU6050 not found!");
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.println("MPU6050 ERROR");
+    display.display();
+    while (1);
+  }
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
+  // Bluetooth init
+  SerialBT.begin("FallDetector");
+  Serial.println("Bluetooth started.");
+
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println("Ready!");
+  display.println("Threshold: 15");
+  display.display();
+}
+
+void loop() {
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  float ax = a.acceleration.x;
+  float ay = a.acceleration.y;
+  float az = a.acceleration.z;
+
+  float totalAccel = sqrt(ax * ax + ay * ay + az * az);
+
+  Serial.print("Accel: ");
+  Serial.println(totalAccel);
+
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.setTextSize(1);
+  display.print("Accel: ");
+  display.println(totalAccel);
+
+  if (totalAccel > threshold) {
+    Serial.println("Fall detected!");
+    SerialBT.println("🚨 Fall detected!");
+    display.setCursor(0, 20);
+    display.setTextSize(2);
+    display.println("FALL!");
+  } else {
+    display.setCursor(0, 20);
+    display.setTextSize(2);
+
+    display.println("SAFE");
+  }
+
+  display.display();
+  delay(500);
+}
